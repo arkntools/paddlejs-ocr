@@ -1,0 +1,35 @@
+{
+  "name": "@arkntools/paddlejs-ocr",
+  "version": "1.0.0",
+  "description": "PaddleJs OCR module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "webpack server --config webpack.dev.js",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "author": "神代綺凛 <i@loli.best>",
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@paddlejs-mediapipe/opencv": "0.0.4",
+    "@paddlejs/paddlejs-backend-webgl": "1.2.9",
+    "@paddlejs/paddlejs-core": "2.2.0",
+    "d3-polygon": "^3.0.1",
+    "js-clipper": "^1.0.1"
+  },
+  "devDependencies": {
+    "html-webpack-plugin": "^5.5.3",
+    "number-precision": "^1.6.0",
+    "raw-loader": "^4.0.2",
+    "ts-loader": "^9.4.4",
+    "typescript": "^5.1.6",
+    "webpack": "^5.88.2",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^4.15.1"
+  }
+}
