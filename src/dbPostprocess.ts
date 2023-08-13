@@ -1,5 +1,6 @@
 import clipper from 'js-clipper';
 import { enableBoundaryChecking, plus, divide } from 'number-precision';
+import cloneDeep from 'lodash.clonedeep';
 import CV from '@paddlejs-mediapipe/opencv/library/opencv_ocr';
 import { clip } from './util';
 
@@ -40,9 +41,9 @@ export default class DBPostprocess {
     // 获取轮廓
     CV.findContours(src, contours, hierarchy, CV.RETR_LIST, CV.CHAIN_APPROX_SIMPLE);
     const num_contours = Math.min(contours.size(), this.max_candidates);
-    const boxes = [];
-    const scores = [];
-    const arr = [];
+    const boxes: number[][][] = [];
+    const scores: number[] = [];
+    const arr: number[] = [];
     for (let i = 0; i < num_contours; i++) {
       const contour = contours.get(i);
       let { points, side } = this.get_mini_boxes(contour);
@@ -53,11 +54,11 @@ export default class DBPostprocess {
       if (this.box_thresh > score) {
         continue;
       }
-      let box = this.unclip(points);
+      const tmpBox = this.unclip(points);
       // eslint-disable-next-line new-cap
-      const boxMap = new CV.matFromArray(box.length / 2, 1, CV.CV_32SC2, box);
+      const boxMap = new CV.matFromArray(tmpBox.length / 2, 1, CV.CV_32SC2, tmpBox);
       const resultObj = this.get_mini_boxes(boxMap);
-      box = resultObj.points;
+      const box = resultObj.points;
       side = resultObj.side;
       if (side < this.min_size + 2) {
         continue;
@@ -80,17 +81,17 @@ export default class DBPostprocess {
   private get_mini_boxes(contour) {
     // 生成最小外接矩形
     const bounding_box = CV.minAreaRect(contour);
-    const points = [];
+    const points: number[][] = [];
     const mat = new CV.Mat();
     // 获取矩形的四个顶点坐标
     CV.boxPoints(bounding_box, mat);
     for (let i = 0; i < mat.data32F.length; i += 2) {
-      const arr = [];
+      const arr: any[] = [];
       arr[0] = mat.data32F[i];
       arr[1] = mat.data32F[i + 1];
       points.push(arr);
     }
-    function sortNumber(a, b) {
+    function sortNumber(a: number[], b: number[]) {
       return a[0] - b[0];
     }
     points.sort(sortNumber);
@@ -123,12 +124,12 @@ export default class DBPostprocess {
     return { points: box, side };
   }
 
-  private box_score_fast(bitmap: number[], _box: number[]) {
+  private box_score_fast(bitmap: number[], _box: number[][]) {
     const h = this.height;
     const w = this.width;
-    const box = JSON.parse(JSON.stringify(_box));
-    const x = [] as number[];
-    const y = [] as number[];
+    const box: number[][] = cloneDeep(_box);
+    const x: number[] = [];
+    const y: number[] = [];
     box.forEach(item => {
       x.push(item[0]);
       y.push(item[1]);
@@ -152,7 +153,7 @@ export default class DBPostprocess {
     const color = new CV.Scalar(255);
     // 多个多边形填充
     CV.fillPoly(mask, pts, color, 1);
-    const sliceArr = [];
+    const sliceArr: number[] = [];
     for (let i = ymin; i < ymax + 1; i++) {
       sliceArr.push(...bitmap.slice(this.width * i + xmin, this.height * i + xmax + 1));
     }
@@ -163,12 +164,12 @@ export default class DBPostprocess {
     return mean;
   }
 
-  private unclip(box: number[]) {
+  private unclip(box: number[][]) {
     const unclip_ratio = this.unclip_ratio;
     const area = Math.abs(Polygon.polygonArea(box));
     const length = Polygon.polygonLength(box);
     const distance = (area * unclip_ratio) / length;
-    const tmpArr = [];
+    const tmpArr: Array<{ X: number; Y: number }> = [];
     box.forEach(item => {
       const obj = {
         X: 0,
@@ -180,15 +181,13 @@ export default class DBPostprocess {
     });
     const offset = new clipper.ClipperOffset();
     offset.AddPath(tmpArr, clipper.JoinType.jtRound, clipper.EndType.etClosedPolygon);
-    const expanded = [];
+    const expanded: Array<Array<{ X: number; Y: number }>> = [];
     offset.Execute(expanded, distance);
-    let expandedArr = [];
-    expanded[0] &&
-      expanded[0].forEach(item => {
-        expandedArr.push([item.X, item.Y]);
-      });
-    expandedArr = [].concat(...expandedArr);
-    return expandedArr;
+    let expandedArr: number[][] = [];
+    expanded[0]?.forEach(item => {
+      expandedArr.push([item.X, item.Y]);
+    });
+    return ([] as number[]).concat(...expandedArr);
   }
 
   private mean(data: number[], mask: number[]) {

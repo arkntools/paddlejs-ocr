@@ -1,20 +1,27 @@
 import './hack';
 import { Runner, env } from '@paddlejs/paddlejs-core';
 import '@paddlejs/paddlejs-backend-webgl';
+import cloneDeep from 'lodash.clonedeep';
 import DBProcess from './dbPostprocess';
 import RecProcess from './recPostprocess';
 import cv from '@paddlejs-mediapipe/opencv/library/opencv_ocr';
 import { flatten, int, clip } from './util';
 
-interface DrawBoxOptions {
+export interface DrawBoxOptions {
   canvas?: HTMLCanvasElement;
   style?: CanvasStyleOptions;
 }
 
-interface CanvasStyleOptions {
+export interface CanvasStyleOptions {
   strokeStyle?: string;
   lineWidth?: number;
   fillStyle?: string;
+}
+
+export interface InitParams {
+  detModel?: string;
+  recModel?: string;
+  ocrCharacter?: string | string[];
 }
 
 let DETSHAPE = 960;
@@ -25,14 +32,14 @@ const canvas_rec = new OffscreenCanvas(0, 0);
 let detectRunner = null as Runner;
 let recRunner = null as Runner;
 
-export async function init(detCustomModel = null, recCustomModel = null) {
+export async function init(params?: InitParams) {
   const detModelPath = 'https://paddlejs.bj.bcebos.com/models/fuse/ocr/ch_PP-OCRv2_det_fuse_activation/model.json';
   const recModelPath = 'https://paddlejs.bj.bcebos.com/models/fuse/ocr/ch_PP-OCRv2_rec_fuse_activation/model.json';
   env.set('webgl_pack_output', true);
   env.set('canvas', new OffscreenCanvas(0, 0));
   env.set('canvas2d', new OffscreenCanvas(0, 0));
   detectRunner = new Runner({
-    modelPath: detCustomModel ? detCustomModel : detModelPath,
+    modelPath: params?.detModel || detModelPath,
     fill: '#fff',
     mean: [0.485, 0.456, 0.406],
     std: [0.229, 0.224, 0.225],
@@ -41,7 +48,7 @@ export async function init(detCustomModel = null, recCustomModel = null) {
   });
   const detectInit = detectRunner.init();
   recRunner = new Runner({
-    modelPath: recCustomModel ? recCustomModel : recModelPath,
+    modelPath: params?.recModel || recModelPath,
     fill: '#000',
     mean: [0.5, 0.5, 0.5],
     std: [0.5, 0.5, 0.5],
@@ -52,12 +59,9 @@ export async function init(detCustomModel = null, recCustomModel = null) {
 
   await Promise.all([detectInit, recInit]);
 
-  if (detectRunner.feedShape) {
-    DETSHAPE = detectRunner.feedShape.fw;
-  }
-  if (recRunner.feedShape) {
-    RECWIDTH = recRunner.feedShape.fw;
-  }
+  RecProcess.ocrCharacter = params?.ocrCharacter;
+  DETSHAPE = detectRunner.feedShape?.fw ?? 960;
+  RECWIDTH = recRunner.feedShape?.fw ?? 320;
 }
 
 async function detect(image: ImageBitmap) {
@@ -67,7 +71,7 @@ async function detect(image: ImageBitmap) {
   canvas_det.width = targetWidth;
   canvas_det.height = targetHeight;
   // 通过canvas将上传原图大小转换为目标尺寸
-  const ctx = canvas_det.getContext('2d');
+  const ctx = canvas_det.getContext('2d')!;
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, targetHeight, targetWidth);
   // 缩放后的宽高
@@ -92,34 +96,33 @@ async function detect(image: ImageBitmap) {
   // 获取坐标
   const result = postResult.outputBox();
   // 转换原图坐标
-  const points = JSON.parse(JSON.stringify(result.boxes));
+  const points = cloneDeep(result.boxes);
   // 框选调整大小
   const adjust = 8;
-  points &&
-    points.forEach(item => {
-      item.forEach((point, index) => {
-        // 扩大框选区域，便于文字识别
-        point[0] = clip(
-          (Math.round(point[0] - x) * Math.max(image.width, image.height)) / DETSHAPE +
-            (index === 0 ? -adjust : index === 1 ? adjust : index === 2 ? adjust : -adjust),
-          0,
-          image.width,
-        );
-        point[1] = clip(
-          (Math.round(point[1] - y) * Math.max(image.width, image.height)) / DETSHAPE +
-            (index === 0 ? -adjust : index === 1 ? -adjust : index === 2 ? adjust : adjust),
-          0,
-          image.height,
-        );
-      });
+  points?.forEach(item => {
+    item.forEach((point, index) => {
+      // 扩大框选区域，便于文字识别
+      point[0] = clip(
+        (Math.round(point[0] - x) * Math.max(image.width, image.height)) / DETSHAPE +
+          (index === 0 ? -adjust : index === 1 ? adjust : index === 2 ? adjust : -adjust),
+        0,
+        image.width,
+      );
+      point[1] = clip(
+        (Math.round(point[1] - y) * Math.max(image.width, image.height)) / DETSHAPE +
+          (index === 0 ? -adjust : index === 1 ? -adjust : index === 2 ? adjust : adjust),
+        0,
+        image.height,
+      );
     });
+  });
   return points;
 }
 
 function drawBox(points: any[], image: ImageBitmap, canvas: HTMLCanvasElement, style?: CanvasStyleOptions) {
   canvas.width = image.width;
   canvas.height = image.height;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d')!;
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
   points &&
     points.forEach(point => {
@@ -153,7 +156,7 @@ export async function recognize(
   file: Blob | ArrayBuffer,
   options?: DrawBoxOptions,
 ): Promise<{
-  points: [number, number, number, number][];
+  points: number[][][];
   text: string[];
 }> {
   const image = await createImageBitmap(file instanceof Blob ? file : new Blob([file]));
@@ -165,9 +168,9 @@ export async function recognize(
       drawBox(point, image, options.canvas, options.style);
     }
     const boxes = sorted_boxes(point);
-    const text_list = [];
+    const text_list: string[] = [];
     for (let i = 0; i < boxes.length; i++) {
-      const tmp_box = JSON.parse(JSON.stringify(boxes[i]));
+      const tmp_box = cloneDeep(boxes[i]);
       get_rotate_crop_image(image, tmp_box);
       const width_num = Math.ceil(canvas_det.width / RECWIDTH);
       let text_list_tmp = '';
@@ -263,7 +266,7 @@ function linalg_norm(x: number[], y: number[]) {
 function resize_norm_img_splice(image: OffscreenCanvas, origin_width: number, origin_height: number, index = 0) {
   canvas_rec.width = RECWIDTH;
   canvas_rec.height = RECHEIGHT;
-  const ctx = canvas_rec.getContext('2d');
+  const ctx = canvas_rec.getContext('2d')!;
   ctx.fillStyle = '#fff';
   ctx.clearRect(0, 0, canvas_rec.width, canvas_rec.height);
   ctx.drawImage(image, -index * RECWIDTH, 0, origin_width, origin_height);

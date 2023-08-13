@@ -1,12 +1,14 @@
-import ocr_character from './ppocrKeysV1';
+import defaultOcrCharacter from './ppocrKeysV1';
 
 export default class RecPostprocess {
+  public static ocrCharacter?: string | string[];
+
   private preds_idx: number[];
   private preds_prob: number[];
 
   constructor(preds: number[]) {
-    const preds_idx = [];
-    const preds_prob = [];
+    const preds_idx: number[] = [];
+    const preds_prob: number[] = [];
     const pred_len = 6625;
     for (let i = 0; i < preds.length; i += pred_len) {
       const tmpArr = preds.slice(i, i + pred_len - 1);
@@ -20,9 +22,10 @@ export default class RecPostprocess {
   }
 
   private decode(text_index: number[], text_prob: number[], is_remove_duplicate = false) {
+    const ocrCharacter = RecPostprocess.ocrCharacter || defaultOcrCharacter;
     const ignored_tokens = this.get_ignored_tokens();
-    const char_list = [];
-    const conf_list = [];
+    const char_list: string[] = [];
+    const conf_list: number[] = [];
     for (let idx = 0; idx < text_index.length; idx++) {
       if (text_index[idx] in ignored_tokens) {
         continue;
@@ -32,7 +35,7 @@ export default class RecPostprocess {
           continue;
         }
       }
-      char_list.push(ocr_character[text_index[idx] - 1]);
+      char_list.push(ocrCharacter[text_index[idx] - 1]);
       if (text_prob) {
         conf_list.push(text_prob[idx]);
       } else {

@@ -1,8 +1,8 @@
 import * as ocr from '../src/index';
 
-const loading = document.getElementById('isLoading');
-const txt = document.getElementById('txt');
-const inputElement = document.getElementById('uploadImg');
+const loading = document.getElementById('isLoading')!;
+const txt = document.getElementById('txt')!;
+const inputElement = document.getElementById('uploadImg')!;
 const canvasOutput = document.getElementById('canvas') as HTMLCanvasElement;
 
 load();
@@ -17,7 +17,7 @@ inputElement.addEventListener(
   async (e: Event) => {
     txt.innerHTML = '';
     // 获取文本检测坐标及识别内容
-    const res = await ocr.recognize((e.target as HTMLInputElement).files[0], {
+    const res = await ocr.recognize((e.target as HTMLInputElement).files![0], {
       canvas: canvasOutput,
       style: { strokeStyle: 'red', lineWidth: 2 },
     });
