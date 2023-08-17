@@ -1,4 +1,5 @@
 import * as ocr from '../src/index';
+import config from '../src/defaultInitConfig';
 
 const loading = document.getElementById('isLoading')!;
 const txt = document.getElementById('txt')!;
@@ -8,7 +9,7 @@ const canvasOutput = document.getElementById('canvas') as HTMLCanvasElement;
 load();
 
 async function load() {
-  await ocr.init();
+  await ocr.init(config);
   loading.style.display = 'none';
 }
 
