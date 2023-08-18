@@ -7,4 +7,4 @@ Modify from https://github.com/PaddlePaddle/FastDeploy/tree/develop/examples/app
 1. Use [OffscreenCanvas](https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvas) instead of Canvas
 2. Added support for Web Workers
 3. API changed
-4. Not contain default model by default, but can be import from `dist/defaultInitConfig`
+4. Not contain default model by default, but can be imported from `dist/defaultInitConfig`
